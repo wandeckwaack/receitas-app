@@ -1,0 +1,19 @@
+(function(root, factory){
+  const api = factory();
+  if(typeof module !== 'undefined') module.exports = api;
+  root.MemoriasDB = api;
+})(typeof globalThis !== 'undefined' ? globalThis : this, function(){
+  const DB_NAME='memorias-a-mesa', STORE='recipes', META='meta', DRAFTS='ocr_drafts', LEGACY_KEYS=['receitas-casa-v1','receitas-de-casa','receitas'];
+  const text = v => String(v == null ? '' : v).trim();
+  function normalizeRecipe(r){
+    r=r||{};
+    return { id:text(r.id)||('r'+Date.now().toString(36)+Math.random().toString(36).slice(2)), title:text(r.title)||'Sem nome', category:text(r.category)||'Outras', time:Number(r.time)||0, servings:Number(r.servings)||0, difficulty:text(r.difficulty)||'Fácil', favorite:!!r.favorite, ingredients:Array.isArray(r.ingredients)?r.ingredients.map(i=>({qty:text(i.qty),unit:text(i.unit),name:text(i.name)})):[], steps:Array.isArray(r.steps)?r.steps.map(text).filter(Boolean):[], author:text(r.author), originStory:text(r.originStory||r.origemHistoria), tips:text(r.tips||r.dicas), photoId:text(r.photoId), updatedAt:r.updatedAt||new Date().toISOString() };
+  }
+  function legacyRecipes(raw){ const parsed=typeof raw==='string'?JSON.parse(raw):raw; return Array.isArray(parsed)?parsed:(parsed&&Array.isArray(parsed.receitas)?parsed.receitas:[]); }
+  function makeBackup(recipes, metadata){ return {app:'memorias-a-mesa',versao:2,exportadoEm:new Date().toISOString(),metadados:metadata||{},receitas:recipes.map(normalizeRecipe)}; }
+  function open(){ return new Promise((resolve,reject)=>{ const req=indexedDB.open(DB_NAME,2); req.onupgradeneeded=()=>{const db=req.result; if(!db.objectStoreNames.contains(STORE)) db.createObjectStore(STORE,{keyPath:'id'}); if(!db.objectStoreNames.contains('photos')) db.createObjectStore('photos',{keyPath:'id'}); if(!db.objectStoreNames.contains(META)) db.createObjectStore(META,{keyPath:'key'}); if(!db.objectStoreNames.contains(DRAFTS)) db.createObjectStore(DRAFTS,{keyPath:'id'});}; req.onsuccess=()=>resolve(req.result); req.onerror=()=>reject(req.error); }); }
+  const done=req=>new Promise((resolve,reject)=>{req.onsuccess=()=>resolve(req.result);req.onerror=()=>reject(req.error);});
+  async function tx(store, mode, action){const db=await open();const t=db.transaction(store,mode);const out=await action(t.objectStore(store)); await new Promise((ok,no)=>{t.oncomplete=ok;t.onerror=()=>no(t.error);});db.close();return out;}
+  async function migrate(){ const migrated=await tx(META,'readonly',s=>done(s.get('legacy-migrated'))); if(migrated) return false; let old=[]; for(const key of LEGACY_KEYS){try{const rows=legacyRecipes(localStorage.getItem(key)||'[]');if(rows.length){old=rows;break;}}catch(_){}} if(old.length){localStorage.setItem('memorias-a-mesa-backup-v2-'+Date.now(),JSON.stringify(makeBackup(old,{motivo:'antes da migração IndexedDB'}))); await tx(STORE,'readwrite',s=>Promise.all(old.map(r=>done(s.put(normalizeRecipe(r))))));} await tx(META,'readwrite',s=>done(s.put({key:'legacy-migrated',value:new Date().toISOString()})));return old.length>0; }
+  return {normalizeRecipe,legacyRecipes,makeBackup,migrate,list:()=>tx(STORE,'readonly',s=>done(s.getAll())), put:r=>tx(STORE,'readwrite',s=>done(s.put(normalizeRecipe(r)))), remove:id=>tx(STORE,'readwrite',s=>done(s.delete(id))), putPhoto:(id,blob)=>tx('photos','readwrite',s=>done(s.put({id,blob}))), getPhoto:id=>tx('photos','readonly',s=>done(s.get(id))), removePhoto:id=>tx('photos','readwrite',s=>done(s.delete(id))), putDraft:draft=>{const item={...draft,id:text(draft&&draft.id)||('ocr-'+Date.now().toString(36)+Math.random().toString(36).slice(2)),createdAt:new Date().toISOString()};return tx(DRAFTS,'readwrite',s=>done(s.put(item)).then(()=>item));},getDraft:id=>tx(DRAFTS,'readonly',s=>done(s.get(id))),deleteDraft:id=>tx(DRAFTS,'readwrite',s=>done(s.delete(id)))};
+});
