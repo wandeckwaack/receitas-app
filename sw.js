@@ -1,4 +1,4 @@
-const CACHE = "memorias-a-mesa-v9-mesa";
+const CACHE = "memorias-a-mesa-v10-online";
 const SHELL = [
   "./",
   "./index.html",
