@@ -2,7 +2,7 @@
 // Servidor opcional: a chave Gemini fica SOMENTE neste processo.
 const http=require('node:http');
 const key=process.env.GEMINI_API_KEY;
-const model=process.env.GEMINI_MODEL||'gemini-2.5-flash';
+const model=process.env.GEMINI_MODEL||'gemini-3.6-flash';
 const port=Number(process.env.PORT||8787);
 if(!key)throw new Error('Defina GEMINI_API_KEY antes de iniciar o proxy.');
 const send=(res,status,data)=>res.writeHead(status,{'content-type':'application/json; charset=utf-8','access-control-allow-origin':process.env.CORS_ORIGIN||'*'}).end(JSON.stringify(data));

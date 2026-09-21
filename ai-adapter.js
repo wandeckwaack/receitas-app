@@ -68,6 +68,7 @@
     model(['almoco rapido', 'almoco'], 'Almoço rápido de frigideira', 'Almoço rápido', 25, baseIngredients.concat([{ qty: '2', unit: 'unidades', name: 'ovos' }, { qty: '1', unit: 'xícara', name: 'arroz cozido' }]), quickSteps, ['rapido', 'economica']),
     model(['jantar economico', 'jantar barato'], 'Jantar econômico de legumes', 'Jantar econômico', 30, baseIngredients.concat([{ qty: '2', unit: 'unidades', name: 'batatas' }, { qty: '1', unit: 'unidade', name: 'cenoura' }]), quickSteps, ['economica', 'vegetariana']),
     model(['vegetariana', 'vegetariano'], 'Vegetariana: arroz cremoso de legumes', 'Vegetariana', 25, baseIngredients.concat([{ qty: '1', unit: 'xícara', name: 'arroz cozido' }, { qty: '1', unit: 'xícara', name: 'legumes em cubos' }]), quickSteps, ['vegetariana', 'rapido']),
+    model(['arroz vegano', 'arroz de legumes vegano'], 'Arroz vegano de legumes', 'Pratos principais', 25, [{ qty: '1', unit: 'xícara', name: 'arroz cozido' }, { qty: '1', unit: 'xícara', name: 'legumes em cubos' }, { qty: '1', unit: 'colher de sopa', name: 'azeite' }], quickSteps, ['vegano', 'vegetariana', 'rapido']),
     model(['sobremesa'], 'Sobremesa de banana com canela', 'Sobremesas', 20, [{ qty: '3', unit: 'unidades', name: 'bananas' }, { qty: '1', unit: 'colher de chá', name: 'canela' }, { qty: '1', unit: 'colher de sopa', name: 'açúcar' }], quickSteps, ['sem-lactose', 'rapido'], 'Sem lactose; use açúcar a gosto.'),
     model(['sopa'], 'Sopa de legumes caseira', 'Sopas', 45, baseIngredients.concat([{ qty: '2', unit: 'unidades', name: 'batatas' }, { qty: '1', unit: 'unidade', name: 'cenoura' }, { qty: '1', unit: 'litro', name: 'caldo de legumes' }]), quickSteps, ['vegetariana', 'economica']),
     model(['frango'], 'Frango dourado com legumes', 'Aves', 35, baseIngredients.concat([{ qty: '500', unit: 'g', name: 'peito de frango' }, { qty: '1', unit: 'unidade', name: 'abobrinha' }]), quickSteps, ['alta-proteina']),
@@ -109,28 +110,36 @@
     model(['jantar rapido'], 'Jantar rápido de omelete', 'Jantar rápido', 20, [{qty:'3',unit:'unidades',name:'ovos'}, {qty:'1',unit:'unidade',name:'tomate'}, {qty:'50',unit:'g',name:'queijo'}], quickSteps, ['rapido'])
   ]);
   let surpriseRotation = 0;
+  const ignoredSearchWords = new Set(['a', 'ao', 'aos', 'as', 'com', 'da', 'das', 'de', 'do', 'dos', 'e', 'em', 'na', 'nas', 'no', 'nos', 'o', 'os', 'para', 'por', 'receita', 'uma', 'um', 'fazer', 'quero', 'tenho', 'preciso', 'hoje', 'sem', 'estilo', 'ate', 'min', 'minuto', 'minutos']);
+  const meatWords = /\b(carne|frango|peixe|bacalhau|charque|linguica|calabresa|camar[aã]o|pato|bode|bovina|bovino|porco|presunto|rabo|miudos?)\b/;
+  function queryWords(value) { return folded(value).split(/[^a-z0-9]+/).filter(word => word.length >= 3 && !ignoredSearchWords.has(word)); }
   function localMatchScore(recipe, searched) {
     const keyText = folded((recipe.keys || []).join(' '));
-    const haystack = keyText + ' ' + folded([...(recipe.tags || []), ...(recipe.aliases || []), ...(recipe.ingredients || []).map(item => item && item.name || '')].join(' '));
-    if (keyText.includes(searched)) return 100;
-    const words = searched.split(/[^a-z0-9]+/).filter(word => word.length >= 3);
-    return words.reduce((score, word) => score + (haystack.includes(word) ? 1 : 0), 0);
+    const haystack = keyText + ' ' + folded([recipe.title, ...(recipe.tags || []), ...(recipe.aliases || []), ...(recipe.ingredients || []).map(item => item && item.name || '')].join(' '));
+    const words = queryWords(searched);
+    if (!words.length || /^(?:com|de|do|da|para|por)\b/.test(folded(searched))) return 0;
+    const matches = words.filter(word => new RegExp('(^|[^a-z0-9])' + word + '(?=$|[^a-z0-9])').test(haystack));
+    // Consultas compostas exigem todos os termos relevantes: "frango tikka masala"
+    // não pode cair na receita genérica de frango.
+    if (matches.length !== words.length) return 0;
+    return (keyText.includes(folded(searched)) ? 100 : 0) + matches.length * 10;
   }
   function matchesLocalModel(recipe, searched) { return localMatchScore(recipe, searched) > 0; }
   function searchPreferences(query) {
     const searched = folded(query);
-    const time = /(?:ate|em ate)\s*30\s*(?:min|minutos)?/.test(searched) ? 30 : /(?:ate|em ate)\s*60\s*(?:min|minutos)?/.test(searched) ? 60 : null;
-    const style = /sem lactose/.test(searched) ? 'sem-lactose' : /alta proteina/.test(searched) ? 'alta-proteina' : /economica|economico/.test(searched) ? 'economica' : /vegetarian/.test(searched) ? 'vegetariana' : null;
-    return { searched, time, style };
+    const timeMatch = searched.match(/(?:ate|em ate)\s*(\d{1,3})\s*(?:min|minuto|minutos)?\b/);
+    const time = timeMatch ? Number(timeMatch[1]) : /\b(rapida|rapido|rapidas|rapidos|fast)\b/.test(searched) ? 30 : null;
+    const style = /sem lactose/.test(searched) ? 'sem-lactose' : /alta proteina/.test(searched) ? 'alta-proteina' : /economica|economico/.test(searched) ? 'economica' : /vegana|vegano/.test(searched) ? 'vegano' : /vegetarian|sem carne/.test(searched) ? 'vegetariana' : null;
+    return { searched, time, style, noMeat: /vegana|vegano|vegetarian|sem carne/.test(searched) };
   }
 
   class LocalFallback {
     async suggestRecipes(query, options) {
       const normalizedQuery = normalizeQuery(query), limit = maxResults(options && options.maxResults), preferences = searchPreferences(normalizedQuery);
       const surprise = /surpreenda/.test(preferences.searched);
-      const exactModels = localModels.filter(model => folded((model.keys || []).join(' ')).includes(preferences.searched));
+      const exactModels = localModels.filter(model => (model.keys || []).some(key => folded(key) === preferences.searched));
       const searchPool = exactModels.length ? exactModels : localModels;
-      const matches = searchPool.filter(model => (surprise || matchesLocalModel(model, preferences.searched)) && (!preferences.time || model.time <= preferences.time) && (!preferences.style || model.tags.includes(preferences.style))).sort((a, b) => localMatchScore(b, preferences.searched) - localMatchScore(a, preferences.searched)).map(normalizeSuggestion).filter(Boolean);
+      const matches = searchPool.filter(model => (surprise || matchesLocalModel(model, preferences.searched)) && (!preferences.time || model.time <= preferences.time) && (!preferences.style || model.tags.includes(preferences.style)) && (!preferences.noMeat || !meatWords.test(folded((model.ingredients || []).map(item => item && item.name || '').join(' '))))).sort((a, b) => localMatchScore(b, preferences.searched) - localMatchScore(a, preferences.searched)).map(normalizeSuggestion).filter(Boolean);
       const offset = surprise && matches.length ? surpriseRotation % matches.length : 0;
       if (surprise && matches.length) surpriseRotation = (offset + 1) % matches.length;
       const suggestions = offset ? matches.slice(offset).concat(matches.slice(0, offset)) : matches;
@@ -169,7 +178,7 @@
       const config = options || {};
       if (!isAllowedEndpoint(config.endpoint)) throw new Error('O endpoint do proxy deve usar HTTPS (ou HTTP apenas em localhost para desenvolvimento).');
       this.endpoint = text(config.endpoint);
-      this.fetch = config.fetch || (typeof fetch === 'function' ? fetch.bind(root) : null);
+      this.fetch = config.fetch || (typeof fetch === 'function' ? fetch.bind(globalThis) : null);
       this.timeout = Math.max(1, Number(config.timeout) || 10000);
       if (!this.fetch) throw new Error('Fetch indisponível para o proxy.');
     }

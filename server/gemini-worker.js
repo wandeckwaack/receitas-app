@@ -32,22 +32,26 @@ export default {
       'access-control-allow-headers': 'content-type'
     }});
     if (request.method !== 'POST' || new URL(request.url).pathname !== '/suggestions') return json({ error: 'Não encontrado.' }, 404, origin);
+    const requestOrigin = request.headers.get('origin');
+    if (env.ALLOWED_ORIGIN && requestOrigin !== env.ALLOWED_ORIGIN) return json({ error: 'Origem não permitida.' }, 403, origin);
     if (!env.GEMINI_API_KEY) return json({ error: 'Serviço de receitas não configurado.' }, 503, origin);
     try {
       const body = await request.json();
       const query = String(body?.query || '').trim().slice(0, 200);
       const maxResults = Math.max(1, Math.min(5, Number(body?.maxResults) || 3));
       if (query.length < 3) return json({ error: 'Busca muito curta.' }, 400, origin);
-      const model = env.GEMINI_MODEL || 'gemini-2.5-flash';
-      const prompt = `Você é uma cozinheira especialista em receitas brasileiras e do mundo. Crie até ${maxResults} receitas completas e específicas para o pedido: ${query}. Responda APENAS JSON válido no formato {"suggestions":[{"title":"","category":"","time":30,"servings":4,"difficulty":"Fácil","ingredients":[{"qty":"","unit":"","name":""}],"steps":[""],"tips":""}]}. Respeite exatamente o prato e os ingredientes pedidos; não troque por uma receita genérica. Escreva em português do Brasil. Inclua pelo menos 4 ingredientes e 4 passos claros por receita.`;
-      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(env.GEMINI_API_KEY)}`, {
+      const model = env.GEMINI_MODEL || 'gemini-3.6-flash';
+      const prompt = `Você é uma cozinheira especialista em receitas brasileiras e do mundo. Crie até ${maxResults} receitas completas e específicas para o pedido: ${query}. Responda APENAS JSON válido no formato {"suggestions":[{"title":"","category":"","time":30,"servings":4,"difficulty":"Fácil","ingredients":[{"qty":"","unit":"","name":""}],"steps":[""],"tips":""}]}. Respeite exatamente o prato e os ingredientes pedidos; não troque por uma receita genérica. Escreva em português do Brasil. Inclua pelo menos 4 ingredientes e de 4 a 8 passos claros, cada passo em uma ou duas frases curtas. Dicas: no máximo uma frase.`;
+      const call = () => fetch(`https://generativelanguage.googleapis.com/v1beta/models/${encodeURIComponent(model)}:generateContent`, {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json' } })
+        headers: { 'content-type': 'application/json', 'x-goog-api-key': env.GEMINI_API_KEY },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }], generationConfig: { responseMimeType: 'application/json', thinkingConfig: { thinkingLevel: 'low' } } })
       });
+      let response = await call();
+      if (response.status === 503 || response.status === 429) { await new Promise(done => setTimeout(done, 1500)); response = await call(); }
       if (!response.ok) return json({ error: 'A busca online não respondeu.' }, 502, origin);
       const data = await response.json();
-      const text = data?.candidates?.[0]?.content?.parts?.[0]?.text || '{}';
+      const text = (data?.candidates?.[0]?.content?.parts || []).find(part => part.text && !part.thought)?.text || '{}';
       const parsed = JSON.parse(text);
       const suggestions = cleanSuggestions(parsed.suggestions);
       if (!suggestions.length) return json({ error: 'A busca online não encontrou uma receita completa.' }, 502, origin);

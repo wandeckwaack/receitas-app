@@ -10,76 +10,43 @@ local versionado. Não são criadas receitas de demonstração.
 - `index.html`, `style.css` e `app.js`: interface vanilla, compatível com GitHub Pages.
 - `db.js`: dados, migração e IndexedDB. Fotos são `Blob` no IndexedDB, reduzidas a
   no máximo 1600 px e JPEG de qualidade 82%.
-- `assistant.js`: funções locais para interpretar e escalar ingredientes, montar
-  compras, sugerir substituições, adaptar forno/air fryer e buscar receitas. É
-  exposto como `MemoriasAssistant` no navegador e CommonJS nos testes. No detalhe
-  de cada receita, o painel recolhível **Assistente** usa essas funções sem rede:
-  recalcula porções sem salvar a alteração, monta uma lista de compras marcada só
-  durante a sessão, apresenta substituições e estima a adaptação para forno ou
-  air fryer.
-- `ai-adapter.js`: adaptador opcional para perguntas. Sem endpoint configurado,
-  responde localmente e de modo determinístico; não há IA generativa. Um proxy
-  próprio pode ser configurado com URL HTTPS (ou localhost no desenvolvimento),
-  sem chave no navegador. Nada é enviado antes do clique em **Perguntar**; por
-  padrão vai apenas a pergunta e título/porções exigem marcação explícita a cada
-  abertura do painel. O endpoint só é lembrado quando o proxy responde; em falha,
-  o app volta ao modo local e o remove. O proxy também possui timeout mesmo em
-  navegadores sem `AbortController` (API de cancelamento de requisições).
-- **Pesquisa de receitas** abre uma revisão de sugestões de receitas. Sem proxy, funciona
-  offline com modelos locais curados — não é IA generativa — para intenções como
-  almoço rápido, jantar econômico, vegetariana, sobremesa, sopa, frango, peixe,
-  carne, moqueca, lasanha, massa italiana, curry, tacos, pão de queijo,
-  brigadeiro e salada. IA generativa exige um endpoint/proxy externo configurado
-  pelo usuário. As preferências de tempo e estilo são filtros de busca, não
-  garantia nutricional, de alergênicos ou de restrições alimentares.
-  Com proxy configurado, envia exclusivamente o texto da busca — limitado a 200
-  caracteres — e o número máximo de opções; receitas, ingredientes, histórias e
-  fotos nunca são enviados nesse fluxo. O app aceita respostas JSON com opções
-  e limita seus campos antes de exibir. Cada opção abre o formulário normal para
-  revisão; nenhuma sugestão é salva automaticamente. A URL do proxy só é lembrada
-  depois de uma resposta bem-sucedida dele e, se falhar ou responder dados
-  inválidos, o app volta aos modelos locais.
+- `assistant.js`: funções locais de apoio (busca nas receitas salvas, interpretação de
+  ingredientes). A interface simplificada usa só a busca; o restante fica disponível
+  para uso futuro.
+- `ai-adapter.js`: busca de receitas. Tenta primeiro a IA online (Worker abaixo) e, se
+  ela não responder, mostra modelos locais curados como reserva.
+- **Pesquisa de receitas**: o campo "O que você quer cozinhar hoje?" fica na própria
+  página inicial. O resultado aparece logo abaixo, sem abrir outra janela; cada receita
+  abre na hora e tem o botão **Guardar nas minhas receitas**, que salva direto. O
+  navegador envia só o texto da busca (até 200 caracteres) e o número de opções; nada
+  das receitas, histórias ou fotos guardadas. Demora de 10 a 30 segundos, conforme a
+  demanda do Google.
+- **IA online**: Cloudflare Worker `memorias-a-mesa-ai` (`server/gemini-worker.js`,
+  `wrangler.toml`) chamando o Gemini (`gemini-3.6-flash`, raciocínio baixo). A chave
+  fica só como segredo do Worker (`npx wrangler secret put GEMINI_API_KEY --name
+  memorias-a-mesa-ai`), nunca no navegador. O Worker só aceita pedidos vindos de
+  `https://wandeckwaack.github.io` e tenta de novo uma vez se o Google estiver
+  sobrecarregado. Para publicar mudanças: `npx wrangler deploy`.
 - Cada receita preserva título, categoria, tempo, porções, dificuldade,
   ingredientes, passos, favorito e inclui autor, origem/história, dicas e foto.
 - Backup exporta metadados e fotos em data URL; isso pode tornar o arquivo grande.
 
 ## Limitações honestas
 
-Ditado usa Web Speech API do navegador: pode exigir internet, permissão de
-microfone e não existe em todos os navegadores. Quando indisponível, fica
-desabilitado. A importação por foto usa OCR local: a foto não é enviada e o
+A importação por foto usa OCR local: a foto não é enviada e o
 texto sempre passa por revisão humana antes de virar receita. OCR funciona
 melhor com texto impresso; manuscrito pode ter baixa precisão. A primeira
 utilização precisa de conexão para baixar o motor (cerca de 3 MB), mas não há
 API paga obrigatória. Não há sincronização entre aparelhos; baixe backups
 regularmente.
 
-A importação permite até quatro fotos. Em dispositivos móveis/touch, **Tirar
-foto agora** abre a câmera para uma foto por vez; acrescente as demais usando
-**Escolher da galeria/arquivos**, que também permanece disponível no desktop.
+A cópia de receita por foto (**Ou copie uma receita de uma foto**) aceita até quatro
+fotos; no celular o próprio sistema oferece tirar a foto ou escolher da galeria.
 
-O assistente pode usar um proxy opcional configurado pelo usuário, mas não inclui
-chaves de API e não envia receita, ingredientes, passos ou foto por padrão. O
-consentimento de título e porções não é lembrado: a cada abertura, o contexto não
-será enviado até marcar a opção. Se o proxy falhar, responde no modo local, sem IA
-generativa. No **Modo cozinha**, quando
-o navegador oferece Web Speech API, o botão **Ouvir comando** reconhece somente
-um comando por vez: “próximo passo”, “passo anterior”/“voltar”, “repetir”, “ler
-ingredientes”, “mostrar ingredientes” e “modo escuro”. O texto reconhecido é
-interpretado localmente; nenhuma gravação ou transcrição é salva. Sem suporte no
-navegador, o controle fica desabilitado e explica a limitação. A leitura em voz
-alta de passos e ingredientes também depende do sintetizador de voz do aparelho.
-A ativação do **Modo cozinha** pede ao navegador para manter a tela ligada enquanto
-estiver ativa; esse pedido pode não ser suportado ou ser recusado e, nesses casos,
-o modo continua disponível. Ao sair do modo ou fechar o detalhe, o app libera essa
-trava de tela, cancela a leitura em voz alta e encerra uma escuta de comando em
-andamento. A lista de compras não sincroniza e é descartada ao fechar/recarregar a página.
-As conversões
-usam medidas caseiras aproximadas (xícara = 240 ml; colher de sopa = 15 ml;
-colher de chá = 5 ml), não convertem volume em peso e preservam expressões como
-“a gosto” e “pitada”. Categorias, busca e substituições são heurísticas e podem
-errar contexto. Substituições são apenas sugestões culinárias: não são
-orientação médica/nutricional; confira alergias, restrições e rótulos.
+Na receita aberta há: **Letras grandes** (deixa o texto maior e a tela acesa
+enquanto você cozinha, se o navegador permitir), **Imprimir**, **Compartilhar**,
+**Editar** e **Excluir**. O formulário tem ingredientes e passos em texto livre, um
+em cada linha.
 
 ## Testes
 
@@ -107,10 +74,10 @@ orientação médica/nutricional; confira alergias, restrições e rótulos.
 |---|---|
 | `index.html` | estrutura HTML, manifesto e carregamento dos módulos do app |
 | `style.css` | estilos responsivos, temas e impressão |
-| `app.js` | interface, modais, fotos, ditado, Wake Lock, backup e interação do usuário |
+| `app.js` | interface, busca de receitas, fotos, backup e interação do usuário |
 | `db.js` | camada de dados: IndexedDB, migração, normalização e fotos |
-| `assistant.js` | assistente local: ingredientes, compras, substituições, preparo e busca |
-| `ai-adapter.js` | perguntas e sugestões locais/proxy opcionais, sem segredos no frontend |
+| `assistant.js` | funções locais de apoio e busca nas receitas salvas |
+| `ai-adapter.js` | busca de receitas: IA online com reserva local, sem segredos no frontend |
 | `tests/db.test.js`, `tests/app.test.js` | testes do núcleo de dados e contratos testáveis da interface |
 | `sw.js` | service worker — faz funcionar offline |
 | `manifest.webmanifest` | deixa instalar como app no celular |
