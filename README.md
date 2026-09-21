@@ -25,6 +25,20 @@ local versionado. Não são criadas receitas de demonstração.
   abertura do painel. O endpoint só é lembrado quando o proxy responde; em falha,
   o app volta ao modo local e o remove. O proxy também possui timeout mesmo em
   navegadores sem `AbortController` (API de cancelamento de requisições).
+- **Pesquisa de receitas** abre uma revisão de sugestões de receitas. Sem proxy, funciona
+  offline com modelos locais curados — não é IA generativa — para intenções como
+  almoço rápido, jantar econômico, vegetariana, sobremesa, sopa, frango, peixe,
+  carne, moqueca, lasanha, massa italiana, curry, tacos, pão de queijo,
+  brigadeiro e salada. IA generativa exige um endpoint/proxy externo configurado
+  pelo usuário. As preferências de tempo e estilo são filtros de busca, não
+  garantia nutricional, de alergênicos ou de restrições alimentares.
+  Com proxy configurado, envia exclusivamente o texto da busca — limitado a 200
+  caracteres — e o número máximo de opções; receitas, ingredientes, histórias e
+  fotos nunca são enviados nesse fluxo. O app aceita respostas JSON com opções
+  e limita seus campos antes de exibir. Cada opção abre o formulário normal para
+  revisão; nenhuma sugestão é salva automaticamente. A URL do proxy só é lembrada
+  depois de uma resposta bem-sucedida dele e, se falhar ou responder dados
+  inválidos, o app volta aos modelos locais.
 - Cada receita preserva título, categoria, tempo, porções, dificuldade,
   ingredientes, passos, favorito e inclui autor, origem/história, dicas e foto.
 - Backup exporta metadados e fotos em data URL; isso pode tornar o arquivo grande.
@@ -40,9 +54,9 @@ utilização precisa de conexão para baixar o motor (cerca de 3 MB), mas não h
 API paga obrigatória. Não há sincronização entre aparelhos; baixe backups
 regularmente.
 
-A importação permite até quatro fotos. Em navegadores móveis, o atributo de
-câmera pode abrir o capturador para apenas uma foto por vez, mesmo com seleção
-múltipla habilitada; nesse caso, escolha as páginas pela galeria.
+A importação permite até quatro fotos. Em dispositivos móveis/touch, **Tirar
+foto agora** abre a câmera para uma foto por vez; acrescente as demais usando
+**Escolher da galeria/arquivos**, que também permanece disponível no desktop.
 
 O assistente pode usar um proxy opcional configurado pelo usuário, mas não inclui
 chaves de API e não envia receita, ingredientes, passos ou foto por padrão. O
@@ -74,6 +88,7 @@ orientação médica/nutricional; confira alergias, restrições e rótulos.
     node tests/ocr.test.js
     node tests/assistant.test.js
     node tests/ai-adapter.test.js
+    node tests/ai-suggest.test.js
     node --check db.js
     node --check app.js
     node --check ocr.js
@@ -95,7 +110,7 @@ orientação médica/nutricional; confira alergias, restrições e rótulos.
 | `app.js` | interface, modais, fotos, ditado, Wake Lock, backup e interação do usuário |
 | `db.js` | camada de dados: IndexedDB, migração, normalização e fotos |
 | `assistant.js` | assistente local: ingredientes, compras, substituições, preparo e busca |
-| `ai-adapter.js` | adaptador local/proxy opcional, sem segredos no frontend |
+| `ai-adapter.js` | perguntas e sugestões locais/proxy opcionais, sem segredos no frontend |
 | `tests/db.test.js`, `tests/app.test.js` | testes do núcleo de dados e contratos testáveis da interface |
 | `sw.js` | service worker — faz funcionar offline |
 | `manifest.webmanifest` | deixa instalar como app no celular |

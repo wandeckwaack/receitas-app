@@ -1,0 +1,12 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 560 116" role="img" aria-labelledby="title desc">
+  <title id="title">Memórias à Mesa</title><desc id="desc">Marca Memórias à Mesa: uma tigela com uma folha, em tons de terracota e açafrão.</desc>
+  <g stroke="#743226" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M18 54h94c-2 31-20 45-47 45S20 85 18 54Z" fill="#c85b3b" stroke-width="5"/>
+    <path d="M27 63h76" fill="none" stroke="#f7d487" stroke-width="4"/>
+    <path d="M112 64h10c12 0 12 19 0 19h-11" fill="none" stroke-width="5"/>
+    <path d="M46 41c-3-13 2-23 10-29M68 40c0-16 7-25 14-31M89 41c1-11 7-19 16-24" fill="none" stroke-width="4"/>
+    <path d="M64 53c3-15 12-25 27-29-1 13-11 27-27 29Z" fill="#7b8150" stroke-width="4"/>
+  </g>
+  <text x="151" y="57" fill="#472920" font-family="Georgia, serif" font-size="44" font-weight="700">Memórias</text>
+  <text x="155" y="91" fill="#8b4a32" font-family="Arial, sans-serif" font-size="18" font-weight="700" letter-spacing="6">À MESA</text>
+</svg>

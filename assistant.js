@@ -120,10 +120,12 @@
   function searchRecipes(recipes, query) {
     const sought = tokens(query); if (!sought.length) return Array.isArray(recipes) ? recipes.slice() : [];
     return (Array.isArray(recipes) ? recipes : []).map((recipe, order) => {
-      const haystack = [recipe && recipe.title, recipe && recipe.category].concat(Array.isArray(recipe && recipe.ingredients) ? recipe.ingredients.map(i => typeof i === 'string' ? i : i && i.name) : []).join(' ');
-      const words = tokens(haystack); const score = sought.reduce((sum, token) => sum + (words.some(word => word === token || word.startsWith(token)) ? 1 : 0), 0);
+      const haystack = [recipe && recipe.title, recipe && recipe.category]
+        .concat(recipe && recipe.tags, recipe && recipe.aliases)
+        .concat(Array.isArray(recipe && recipe.ingredients) ? recipe.ingredients.map(i => typeof i === 'string' ? i : i && i.name) : []).join(' ');
+      const words = tokens(haystack); const score = sought.reduce((sum, token) => sum + (words.some(word => word === token || word.startsWith(token) || token.startsWith(word)) ? 1 : 0), 0);
       return { recipe, order, score };
-    }).filter(row => row.score === sought.length).sort((a, b) => b.score - a.score || a.order - b.order).map(row => row.recipe);
+    }).filter(row => row.score > 0).sort((a, b) => b.score - a.score || a.order - b.order).map(row => row.recipe);
   }
   function parseVoiceCommand(text) {
     const command = fold(text).replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();

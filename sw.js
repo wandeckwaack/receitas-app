@@ -1,4 +1,4 @@
-const CACHE = "memorias-a-mesa-v5";
+const CACHE = "memorias-a-mesa-v9-mesa";
 const SHELL = [
   "./",
   "./index.html",
@@ -7,8 +7,10 @@ const SHELL = [
   "./ocr.js",
   "./assistant.js",
   "./ai-adapter.js",
+  "./config.js",
   "./db.js",
   "./manifest.webmanifest",
+  "./logo.svg",
   "./icon-192.png",
   "./icon-512.png",
   "./icon-180.png",

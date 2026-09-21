@@ -1,0 +1,7 @@
+name = "memorias-a-mesa-ai"
+main = "server/gemini-worker.js"
+compatibility_date = "2026-09-20"
+
+[vars]
+GEMINI_MODEL = "gemini-2.5-flash"
+ALLOWED_ORIGIN = "https://wandeckwaack.github.io"
